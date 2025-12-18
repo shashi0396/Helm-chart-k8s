@@ -1,0 +1,19 @@
+{{- if .Values.configmap.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-config
+  namespace: {{ .Release.Namespace }}
+data:
+  {{- if .Values.configmap.envConfig }}
+  {{- range $key, $value := .Values.configmap.envConfig }}
+  {{ $key }}: {{ $value | quote }}
+  {{- end }}
+  {{- end }}
+  {{- if .Values.configmap.files }}
+  {{- range $key, $value := .Values.configmap.files }}
+  {{ $key }}: |
+    {{- $value | nindent 4 }}
+  {{- end }}
+  {{- end }}
+{{- end }}

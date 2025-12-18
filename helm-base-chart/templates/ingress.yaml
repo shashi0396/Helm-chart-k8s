@@ -1,0 +1,70 @@
+{{- if or (.Values.ingress.enabled) (and (.Values.nginx.enabled) (not .Values.ingress.enabled)) }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ .Release.Name }}-ingress
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    {{- if and (.Values.ingress.enabled) (.Values.ingress.annotations) }}
+      {{- range $key, $value := .Values.ingress.annotations }}
+    {{ $key }}: {{ $value | quote }}
+      {{- end }}
+    {{- else if and (.Values.nginx.enabled) (.Values.nginx.annotations) }}
+      {{- range $key, $value := .Values.nginx.annotations }}
+    {{ $key }}: {{ $value | quote }}
+      {{- end }}
+    {{- end }}
+spec:
+  ingressClassName: {{ if .Values.ingress.enabled }}{{ .Values.ingress.className | quote }}{{ else if .Values.nginx.enabled }}{{ .Values.nginx.className | quote }}{{ end }}
+  rules:
+    {{- if .Values.ingress.enabled }}
+      {{- range .Values.ingress.rules }}
+    - host: {{ .host | quote }}
+      http:
+        paths:
+          {{- range .http.paths }}
+          - path: {{ .path }}
+            pathType: {{ .pathType }}
+            backend:
+              service:
+                name: {{ .backend.service }}
+                port:
+                  number: {{ .backend.port }}
+          {{- end }}
+      {{- end }}
+    {{- else if .Values.nginx.enabled }}
+      {{- range .Values.nginx.rules }}
+    - host: {{ .host | quote }}
+      http:
+        paths:
+          {{- range .paths }}
+          - path: {{ .path }}
+            pathType: {{ .pathType }}
+            backend:
+              service:
+                name: {{ .backend.service | default (printf "%s-service" $.Release.Name) }}
+                port:
+                  number: {{ .backend.port }}
+          {{- end }}
+      {{- end }}
+    {{- end }}
+  {{- if and .Values.ingress.enabled .Values.ingress.tls.enabled }}
+  tls:
+    {{- range .Values.ingress.tls.config }}
+    - hosts:
+        {{- range .hosts }}
+        - {{ . }}
+        {{- end }}
+      secretName: {{ .secretName }}
+    {{- end }}
+  {{- else if and .Values.nginx.enabled .Values.nginx.tls.enabled }}
+  tls:
+    {{- range .Values.nginx.tls.config }}
+    - hosts:
+        {{- range .hosts }}
+        - {{ . }}
+        {{- end }}
+      secretName: {{ .secretName }}
+    {{- end }}
+  {{- end }}
+{{- end }}

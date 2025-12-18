@@ -1,0 +1,101 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ .Release.Name }}
+  annotations:
+    ci.branch: {{ .Values.gitBranch | quote }}
+    ci.commitId: {{ .Values.gitCommit | quote }}
+    ci.buildNumber: {{ .Values.gitBuildNumber | quote }}
+    ci.buildTimestamp: {{ .Values.gitBuildTimestamp | quote }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  strategy:
+    type: 
+      {{- if .Values.lowerenvStrategy.enabled }}
+      Recreate
+      {{- else }}
+      {{ .Values.strategy.type | default "Recreate" }}
+      {{- end }}
+    {{- if and (not .Values.lowerenvStrategy.enabled) (eq .Values.strategy.type "RollingUpdate") }}
+    rollingUpdate:
+      maxUnavailable: {{ .Values.strategy.maxUnavailable | default "50%" }}
+      maxSurge: {{ .Values.strategy.maxSurge | default "1" }}
+    {{- end }}
+  selector:
+    matchLabels:
+      app: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Release.Name }}
+    spec:
+      {{- if .Values.nodeSelector.enabled }}
+      nodeSelector:
+        {{- toYaml .Values.nodeSelector.values | nindent 10 }}
+      {{- end }}
+      {{- if .Values.tolerations.enabled }}
+      tolerations:
+        {{- toYaml .Values.tolerations.values | nindent 10 }}
+      {{- end }}
+      {{- if .Values.affinity.enabled }}
+      affinity:
+        {{- toYaml .Values.affinity.rules | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: {{ .Release.Name }}
+          image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- if .Values.command.enabled }}
+          command: {{- toYaml .Values.command.value | nindent 12 }}
+          {{- end }}
+          {{- if .Values.service.enabled }}
+          ports:
+            - containerPort: {{ .Values.service.targetPort }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.resources | nindent 14 }}
+          {{- if .Values.livenessProbe.enabled }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.livenessProbe.path }}
+              port: {{ .Values.service.targetPort }}
+            initialDelaySeconds: {{ .Values.livenessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.livenessProbe.periodSeconds }}
+          {{- end }}
+          {{- if .Values.readinessProbe.enabled }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.readinessProbe.path }}
+              port: {{ .Values.service.targetPort }}
+            initialDelaySeconds: {{ .Values.readinessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.readinessProbe.periodSeconds }}
+          {{- end }}
+          # Inject environment variables from ConfigMap (if enabled)
+          {{- if and .Values.configmap.enabled .Values.configmap.envConfig }}
+          envFrom:
+            - configMapRef:
+                name: {{ .Release.Name }}-config
+          {{- end }}
+          # Mount config files from ConfigMap (if enabled)
+          {{- if and .Values.configmap.enabled .Values.configmap.files }}
+          volumeMounts:
+            {{- range $key, $value := .Values.configmap.files }}
+            - name: config-volume
+              mountPath: {{ $.Values.configmap.appWorkingDir }}/{{ $key }}  # Mount dynamically based on appWorkingDir
+              subPath: {{ $key }}  # Preserve file name inside the pod
+            {{- end }}
+          {{- end }}
+      # Define volumes only if configmap.files is present
+      {{- if and .Values.configmap.enabled .Values.configmap.files }}
+      volumes:
+        - name: config-volume
+          configMap:
+            name: {{ .Release.Name }}-config
+      {{- end }}
+      {{- if .Values.imagePullSecrets.enabled }}
+      imagePullSecrets:
+        {{- toYaml .Values.imagePullSecrets.values | nindent 8 }}
+      {{- end }}

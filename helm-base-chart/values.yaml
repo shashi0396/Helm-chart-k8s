@@ -1,0 +1,177 @@
+replicaCount: 1
+
+image:
+  repository: xxxxxxxxxxxxxxx.dkr.ecr.ap-south-1.amazonaws.com/xxxxxxxx
+  tag: be_v-5
+  pullPolicy: IfNotPresent
+
+gitBranch: master
+gitCommit: "HEAD"
+gitBuildNumber: "10"
+gitBuildTimestamp: "20241010"
+
+service:
+  enabled: true
+  type: ClusterIP
+  headless: false
+  port: 80
+  targetPort: 6000
+
+resources:
+  limits:
+    memory: 128Mi
+    cpu: 500m
+  requests:
+    memory: 64Mi
+    cpu: 250m
+
+imagePullSecrets:
+  enabled: false
+  values:
+    - name: credreg-1
+
+
+affinity:
+  enabled: false
+  rules:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
+              - key: node_group_type
+                operator: In
+                values:
+                  - spot
+                  - on-demand
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 1
+          preference:
+            matchExpressions:
+              - key: node_group_type
+                operator: In
+                values:
+                  - spot
+
+command:
+  enabled: false
+  value:
+    - "bash"
+    - "-c"
+    - "python main.py"
+
+ingress:
+  enabled: true
+  className: alb
+  annotations:
+    alb.ingress.kubernetes.io/group.name: development
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS":443}]'
+    alb.ingress.kubernetes.io/actions.ssl-redirect: '{"Type": "redirect", "RedirectConfig": { "Protocol": "HTTPS", "Port": "443", "StatusCode": "HTTP_301"}}'
+    alb.ingress.kubernetes.io/certificate-arn: "arn:aws:acm:ap-south-1:xxxxxxxxxxxxxxxx:certificate/xxxxxxxxxxxxxxxxxxxxxxxx"
+    alb.ingress.kubernetes.io/tags: Environment=dev,Team=developer
+  rules:
+    - host: dev.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+          backend:
+            service: backend-service-v1
+            port: 80
+  tls:
+    enabled: false
+    config:
+      - hosts:
+          - dev.example.com
+        secretName: my-app-tls
+
+nginx:
+  enabled: false
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+  rules:
+    - host: dev.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+          backend:
+            service: backend-service-v1   # dyanmically mapped
+            port: 80
+  tls:
+    enabled: false
+    config:
+      - hosts:
+          - dev.example.com
+        secretName: my-app-tls
+
+
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 3
+  metrics:
+    cpu:
+      enabled: false
+      averageUtilization: 80
+    memory:
+      enabled: true
+      averageUtilization: 80
+
+vpa:
+  enabled: false
+  updateMode: "Off"
+
+configmap:
+  enabled: false
+  appWorkingDir: "/app"  # Dynamic docker Working Directory (Changeable Per App)
+  files:
+    appsettings.json: |
+      {
+        "ConnectionStrings": {
+          "DefaultConnection": "Server=db;Database=app;User Id=admin;Password=pass;"
+        },
+        "Logging": {
+          "LogLevel": {
+            "Default": "Information"
+          }
+        }
+      }
+  envConfig:
+    JWT_ISSUER: "example.com"
+    JWT_SECRET: "xxxxxxxxxxxx-xxxxxxxx"
+
+
+nodeSelector:
+  enabled: false
+  values: {}
+
+tolerations:
+  enabled: false
+  values:
+    - key: "nvidia.com/gpu"
+      operator: "Equal"
+      value: "present"
+      effect: "NoSchedule"
+
+livenessProbe:
+  enabled: false
+  path: /health
+  initialDelaySeconds: 5
+  periodSeconds: 10
+
+readinessProbe:
+  enabled: false
+  path: /ready
+  initialDelaySeconds: 3
+  periodSeconds: 5
+
+
+lowerenvStrategy:
+  enabled: true  # Set to true to use Recreate strategy
+
+strategy:
+  type: RollingUpdate  # RollingUpdate for other environments
+  maxUnavailable: 50%
+  maxSurge: 1
