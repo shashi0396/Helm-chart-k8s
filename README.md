@@ -1,6 +1,5 @@
 # Helm-chart-k8s
-Helm chart for k8s deployments
-# Backend Application Helm Chart
+Helm chart for k8s deployments.
 
 This Helm chart deploys a containerized backend application on Kubernetes with flexible configuration for networking, scaling, scheduling, and environment-specific deployment strategies. It is designed to work well on **Amazon EKS**, supporting **AWS ALB Ingress**, **NGINX Ingress**, autoscaling, and common production requirements.
 
@@ -51,7 +50,7 @@ helm-base-chart/
 
 ---
 
-## Installation
+## Lifecyle-Helm chart
 
 ### Install the chart
 
@@ -72,10 +71,10 @@ helm upgrade backend-app ./helm-base-chart -n dev
 ```bash
 helm uninstall backend-app -n dev
 ```
----
-
-## Configuration
-All configuration is controlled via `values.yaml`.
+### Config control
+```bash
+All configuration is controlled via `values.yaml`. If needed, can pass custom values as `stage.values.yaml` as `args`.
+```
 ---
 
 ## Image Configuration
@@ -86,13 +85,6 @@ image:
   tag: be_v-5
   pullPolicy: IfNotPresent
 ```
-
-| Field      | Description                  |
-| ---------- | ---------------------------- |
-| repository | Docker image repository      |
-| tag        | Image tag                    |
-| pullPolicy | Kubernetes image pull policy |
-
 ---
 ## Service Configuration
 
@@ -110,8 +102,6 @@ service:
 | enabled    | Enable or disable Service creation |
 | type       | Kubernetes Service type            |
 | headless   | Enable headless service            |
-| port       | Service port                       |
-| targetPort | Container port                     |
 
 ---
 
@@ -192,20 +182,11 @@ ingress:
   className: alb
 ```
 
-Features:
-
-* HTTPS via ACM
-* ALB group support
-* Internet-facing or internal
-* Path-based routing
-
 | Field       | Description              |
 | ----------- | ------------------------ |
 | annotations | ALB-specific annotations |
 | rules       | Host and path rules      |
 | tls         | TLS configuration        |
-
----
 
 ### NGINX Ingress (Alternative)
 
@@ -244,8 +225,6 @@ vpa:
 
 Controls automatic resource tuning.
 
----
-
 ### ConfigMap Support i.e, configmaps can be mounted as volume
 
 ```yaml
@@ -279,9 +258,6 @@ tolerations:
 
 Allow scheduling onto tainted nodes.
 
-
-### Health Probes
-
 ### Liveness Probe
 
 ```yaml
@@ -298,16 +274,14 @@ readinessProbe:
 
 Improves application reliability and rollout safety.
 
-### Deployment Strategy
-
-### Lower Environment Strategy
+### Deployment Strategy- For Lower & Higher Env Strategy
 
 ```yaml
 lowerenvStrategy:
   enabled: true
 ```
 
-Uses **Recreate** strategy for dev/test environments.
+Uses 'Recreate' strategy for dev/test environments.
 
 ### Default Strategy
 
@@ -327,6 +301,7 @@ Recommended for staging and production.
 helm install backend-app ./helm-base-chart \
   --set image.tag=be_v-6 \
   --set autoscaling.enabled=true
+  --values stage.values.yaml
 ```
 
 ## Best Practices
